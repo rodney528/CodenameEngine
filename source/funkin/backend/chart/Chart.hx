@@ -87,30 +87,28 @@ class Chart {
 		return data;
 	}
 
-	public static function loadChartMeta(songName:String, difficulty:String = "normal", fromMods:Bool = true) {
+	public static function loadChartMeta(songName:String, difficulty:String = "normal", fromMods:Bool = true):ChartMetaData {
 		var songNameLower = songName.toLowerCase();
 		var metaPath = Paths.file('songs/${songNameLower}/meta.json');
 		var metaDiffPath = Paths.file('songs/${songNameLower}/meta-${difficulty.toLowerCase()}.json');
 
 		var data:ChartMetaData = null;
 		var fromMods:Bool = fromMods;
-		for(path in [metaDiffPath, metaPath]) {
-			if (Assets.exists(path)) {
-				fromMods = Paths.assetsTree.existsSpecific(path, "TEXT", MODS);
-				try {
-					data = Json.parse(Assets.getText(path));
-				} catch(e) {
-					Logs.trace('Failed to load song metadata for ${songName} ($path): ${Std.string(e)}', ERROR);
-				}
-				if (data != null) break;
-			}
+		for (path in [metaDiffPath, metaPath]) if (Assets.exists(path)) {
+			fromMods = Paths.assetsTree.existsSpecific(path, "TEXT", MODS);
+			try {
+				var tempData = Json.parse(Assets.getText(path));
+				tempData.color = CoolUtil.getColorFromDynamic(tempData.color).getDefault(defaultColor);
+				data = tempData;
+			} catch(e) Logs.trace('Failed to load song metadata for ${songName} ($path): ${Std.string(e)}', ERROR);
+			if (data != null) break;
 		}
 
-		if (data == null)
-			data = {
-				name: songName,
-				bpm: 100
-			};
+		if (data == null) data = {
+			name: songName,
+			bpm: 100
+		};
+
 		data.setFieldDefault("name", songName);
 		data.setFieldDefault("beatsPerMeasure", 4);
 		data.setFieldDefault("stepsPerBeat", 4);
@@ -120,7 +118,6 @@ class Chart {
 		data.setFieldDefault("coopAllowed", false);
 		data.setFieldDefault("opponentModeAllowed", false);
 		data.setFieldDefault("displayName", data.name);
-		data.setFieldDefault("parsedColor", data.color.getColorFromDynamic().getDefault(defaultColor));
 
 		if (data.difficulties.length <= 0) {
 			data.difficulties = [for(f in Paths.getFolderContent('songs/${songNameLower}/charts/', false, !fromMods)) if (Path.extension(f = f.toUpperCase()) == "JSON") Path.withoutExtension(f)];
@@ -165,11 +162,9 @@ class Chart {
 			valid = false;
 		}
 		var data:Dynamic = null;
-		try {
-			if (valid)
-				data = Json.parse(Assets.getText(chartPath));
-		} catch(e) {
-			Logs.trace('Could not parse chart for song ${songName} ($difficulty): ${Std.string(e)}', ERROR, RED);
+		if (valid) {
+			try data = Json.parse(Assets.getText(chartPath))
+			catch(e) Logs.trace('Could not parse chart for song ${songName} ($difficulty): ${Std.string(e)}', ERROR, RED);
 		}
 
 		/**
@@ -230,8 +225,7 @@ class Chart {
 				return 0;
 			default:
 				var index = chart.noteTypes.indexOf(noteTypeName);
-				if (index > -1)
-					return index+1;
+				if (index > -1) return index + 1;
 				chart.noteTypes.push(noteTypeName);
 				return chart.noteTypes.length;
 		}
@@ -265,32 +259,32 @@ class Chart {
 
 		CoolUtil.safeSaveFile(chartPath, Json.stringify(filteredChart, null, saveSettings.prettyPrint == true ? "\t" : null));
 
-		// idk how null reacts to it so better be sure
 		if (saveSettings.overrideExistingMeta == true || !FileSystem.exists(metaPath))
-			CoolUtil.safeSaveFile(metaPath, Json.stringify(meta, null, saveSettings.prettyPrint == true ? "\t" : null));
+			CoolUtil.safeSaveFile(metaPath, makeMetaSaveable(meta));
 		#end
 		return filteredChart;
 	}
 
 	public static function filterChartForSaving(chart:ChartData, ?saveMetaInChart:Null<Bool>, ?saveEventsInChart:Null<Bool>):ChartData {
 		var data = Reflect.copy(chart); // make a copy of the chart to leave the OG intact
-		if (saveMetaInChart != true) {
-			data.meta = null;
-		} else {
-			data.meta = Reflect.copy(chart.meta); // also make a copy of the metadata to leave the OG intact.
-			if(data.meta != null && Reflect.hasField(data.meta, "parsedColor")) Reflect.deleteField(data.meta, "parsedColor");
-		}
+		data.meta = saveMetaInChart != true ? null : data.meta = Reflect.copy(chart.meta); // also make a copy of the metadata to leave the OG intact.
 
 		data.events = saveEventsInChart != true ? null : Reflect.copy(chart.events);  // same here once again
 		data.fromMods = null;
 
 		var sortedData:Dynamic = {};
-		for(f in Reflect.fields(data)) {
+		for (f in Reflect.fields(data)) {
 			var v = Reflect.field(data, f);
 			if (v != null)
 				Reflect.setField(sortedData, f, v);
 		}
 		return sortedData;
+	}
+
+	public static inline function makeMetaSaveable(meta:ChartMetaData, prettyPrint:Bool = true):String {
+		var data:Dynamic = Reflect.copy(meta);
+		if (data.color != null) data.color = new FlxColor(data.color).toWebString();  // dont even ask me  - Nex
+		return Json.stringify(data, null, prettyPrint ? "\t" : null);
 	}
 }
 

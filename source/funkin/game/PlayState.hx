@@ -12,7 +12,7 @@ import funkin.backend.chart.Chart;
 import funkin.backend.chart.ChartData;
 import funkin.game.SplashHandler;
 import funkin.backend.scripting.DummyScript;
-import funkin.menus.StoryMenuState.WeekData;
+import funkin.backend.week.WeekData;
 import funkin.backend.FunkinText;
 import funkin.backend.scripting.Script;
 import funkin.backend.scripting.ScriptPack;
@@ -615,7 +615,7 @@ class PlayState extends MusicBeatState
 					// ADD YOUR HARDCODED SCRIPTS HERE!
 				default:
 					var normal = 'songs/${SONG.meta.name.toLowerCase()}/scripts';
-					var scriptsFolders:Array<String> = [normal, normal + '/$difficulty/', 'data/charts/', 'songs/'];
+					var scriptsFolders:Array<String> = [normal, normal + '/${difficulty.toLowerCase()}/', 'data/charts/', 'songs/'];
 
 					for (folder in scriptsFolders) {
 						for (file in Paths.getFolderContent(folder, true, fromMods ? MODS : BOTH)) {
@@ -1266,16 +1266,8 @@ class PlayState extends MusicBeatState
 		if (updateRatingStuff != null)
 			updateRatingStuff();
 
-		if (canAccessDebugMenus) {
-			if (chartingMode && FlxG.keys.justPressed.SEVEN) {
-				FlxG.switchState(new funkin.editors.charter.Charter(SONG.meta.name, difficulty, false));
-			}
-			if (FlxG.keys.justPressed.F5) {
-				Logs.trace('Reloading scripts...', WARNING, YELLOW);
-				scripts.reload();
-				Logs.trace('Song scripts successfully reloaded.', WARNING, GREEN);
-			}
-		}
+		if (canAccessDebugMenus && chartingMode && FlxG.keys.justPressed.SEVEN)
+			FlxG.switchState(new funkin.editors.charter.Charter(SONG.meta.name, difficulty, false));
 
 		if (doIconBop)
 			for (icon in iconArray)
@@ -1515,6 +1507,7 @@ class PlayState extends MusicBeatState
 	 */
 	public function endSong():Void
 	{
+		endingSong = true;
 		scripts.call("onSongEnd");
 		canPause = false;
 		inst.volume = 0;
@@ -1961,7 +1954,7 @@ class PlayState extends MusicBeatState
 	 */
 	public static function loadWeek(weekData:WeekData, difficulty:String = "normal") {
 		storyWeek = weekData;
-		storyPlaylist = [for(e in weekData.songs) e.name];
+		storyPlaylist = [for (e in weekData.songs) e.name];
 		isStoryMode = true;
 		campaignScore = 0;
 		campaignMisses = 0;
@@ -1994,7 +1987,6 @@ class PlayState extends MusicBeatState
 	 */
 	public static function __loadSong(name:String, difficulty:String) {
 		PlayState.difficulty = difficulty;
-
 		PlayState.SONG = Chart.parse(name, difficulty);
 		PlayState.fromMods = PlayState.SONG.fromMods;
 	}
