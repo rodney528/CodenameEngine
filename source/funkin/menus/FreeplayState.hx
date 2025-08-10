@@ -25,9 +25,14 @@ class FreeplayState extends MusicBeatState
 	public var curSong:Null<ChartMetaData>;
 
 	/**
-	 * Current song metadata difficulty
+	 * Current song difficulties
 	 */
-	public var curSongDifficulty:Null<String>;
+	public var curDifficulties:Array<String>;
+
+	/**
+	 * songs[curSelected].metas.get(curDiffMetaIndices[curDifficulty])
+	 */
+	public var curDiffMetaKeys:Array<String> = [];
 
 	/**
 	 * Currently selected song
@@ -117,15 +122,14 @@ class FreeplayState extends MusicBeatState
 				curSelected = k;
 			}
 		}
-		updateCurSongMeta();
 
-		if (curSong != null) {
-			for(k=>diff in songs[curSelected].difficulties) {
-				if (diff == Options.freeplayLastDifficulty) {
-					curDifficulty = k;
-				}
-			}
+		updateCurDifficulties();
+		for(i=>diff in curDifficulties) {
+			if (curDiffMetaKeys[i] == Options.freeplayLastVariation && diff == Options.freeplayLastDifficulty)
+				curDifficulty = i;
 		}
+
+		updateCurSong();
 
 		DiscordUtil.call("onMenuLoaded", ["Freeplay"]);
 
@@ -151,8 +155,7 @@ class FreeplayState extends MusicBeatState
 
 			var icon:HealthIcon = new HealthIcon(songs[i].icon);
 			icon.sprTracker = songText;
-			icon.setUnstretchedGraphicSize(150, 150, true);
-			icon.updateHitbox();
+			if (Math.max(icon.width, icon.height) > 150) icon.setUnstretchedGraphicSize(150, 150);
 
 			// using a FlxGroup is too much fuss!
 			iconArray.push(icon);
@@ -181,7 +184,6 @@ class FreeplayState extends MusicBeatState
 		add(scoreText);
 
 		changeSelection(0, true);
-		changeDiff(0, true);
 		changeCoopMode(0, true);
 
 		interpColor = new FlxInterpolateColor(bg.color);
@@ -257,7 +259,7 @@ class FreeplayState extends MusicBeatState
 		var dontPlaySongThisFrame = false;
 		autoplayElapsed += elapsed;
 		if (!disableAutoPlay && !songInstPlaying && (autoplayElapsed > timeUntilAutoplay)) {
-			if (curPlayingInst != (curPlayingInst = Paths.inst(curSong.name, curSongDifficulty, curSong.instSuffix))) {
+			if (curPlayingInst != (curPlayingInst = Paths.inst(curSong.name, curDifficulties[curDifficulty], curSong.instSuffix))) {
 				var streamed = false;
 				if (Options.streamedMusic) {
 					var sound = Assets.getMusic(curPlayingInst, true, false);
@@ -330,9 +332,9 @@ class FreeplayState extends MusicBeatState
 	public function select() {
 		updateCoopModes();
 
-		if (songs[curSelected].difficulties.length <= 0) return;
+		if (curDifficulties.length == 0) return;
 
-		var event = event("onSelect", EventManager.get(FreeplaySongSelectEvent).recycle(curSong.name, curSongDifficulty, __opponentMode, __coopMode));
+		var event = event("onSelect", EventManager.get(FreeplaySongSelectEvent).recycle(curSong.name, curDifficulties[curDifficulty], curSong.variant, __opponentMode, __coopMode));
 
 		if (event.cancelled) return;
 
@@ -341,16 +343,17 @@ class FreeplayState extends MusicBeatState
 		#end
 
 		Options.freeplayLastSong = curSong.name;
-		Options.freeplayLastDifficulty = curSongDifficulty;
+		Options.freeplayLastDifficulty = curDifficulties[curDifficulty];
+		Options.freeplayLastVariation = curSong.variant;
 
-		PlayState.loadSong(event.song, event.difficulty, event.opponentMode, event.coopMode);
+		PlayState.loadSong(event.song, event.difficulty, event.variant, event.opponentMode, event.coopMode);
 		FlxG.switchState(new PlayState());
 	}
 
 	public function convertChart() {
-		trace('Converting ${curSong.name} (${curSongDifficulty}) to Codename format...');
-		var chart = Chart.parse(curSong.name, curSongDifficulty);
-		Chart.save('${Main.pathBack}assets/songs/${curSong.name}', chart, curSongDifficulty);
+		trace('Converting ${curSong.name} ${curDifficulties[curDifficulty]} ${curSong.variant} to Codename format...');
+		var chart = Chart.parse(curSong.name, curDifficulties[curDifficulty], curSong.variant);
+		Chart.save(chart, curDifficulties[curDifficulty], curSong.variant);
 	}
 
 	/**
@@ -358,39 +361,35 @@ class FreeplayState extends MusicBeatState
 	 * @param change How much to change.
 	 * @param force Force the change if `change` is equal to 0
 	 */
-	public function changeDiff(change:Int = 0, force:Bool = false)
-	{
+	public function changeDiff(change:Int = 0, force:Bool = false) {
 		if (change == 0 && !force) return;
 
-		var song = songs[curSelected];
-		var validDifficulties = song.difficulties.length > 0;
-		var event = event("onChangeDiff", EventManager.get(MenuChangeEvent).recycle(curDifficulty, validDifficulties ? FlxMath.wrap(curDifficulty + change, 0, song.difficulties.length-1) : 0, change));
+		var validDifficulties = curDifficulties.length > 0;
+		var event = event("onChangeDiff", EventManager.get(MenuChangeEvent).recycle(curDifficulty, validDifficulties ? FlxMath.wrap(curDifficulty + change, 0, curDifficulties.length-1) : 0, change));
 
 		if (event.cancelled) {
-			if (force) updateCurSongMeta();
+			if (force) updateCurSong();
 			return;
 		}
 
-		var prevInstSuffix = curSong.instSuffix;
+		var prevSong = curSong;
 		curDifficulty = event.value;
-		updateCurSongMeta();
+		updateCurSong();
 		updateScore();
 
 		#if PRELOAD_ALL
-		if (curSong.instSuffix != prevInstSuffix) {
+		if (curSong != prevSong) {
 			autoplayElapsed = 0;
 			songInstPlaying = false;
 		}
 		#end
 
-		if (song.difficulties.length > 1)
-			diffText.text = '< ${song.difficulties[curDifficulty].toUpperCase()} >';
-		else
-			diffText.text = validDifficulties ? song.difficulties[curDifficulty].toUpperCase() : "-";
+		var text = validDifficulties ? curDifficulties[curDifficulty].toUpperCase() + (curSong != songs[curSelected] ? ' (${curSong.variant.toUpperCase()})' : '') : '-';
+		diffText.text = curDifficulties.length > 1 ? '< $text >' : text;
 	}
 
 	function updateScore() {
-		if (songs[curSelected].difficulties.length <= 0) {
+		if (curDifficulties.length == 0) {
 			intendedScore = 0;
 			return;
 		}
@@ -398,7 +397,7 @@ class FreeplayState extends MusicBeatState
 		var changes:Array<HighscoreChange> = [];
 		if (__coopMode) changes.push(CCoopMode);
 		if (__opponentMode) changes.push(COpponentMode);
-		var saveData = FunkinSave.getSongHighscore(curSong.name, curSongDifficulty, changes);
+		var saveData = FunkinSave.getSongHighscore(curSong.name, curDifficulties[curDifficulty], curSong.variant, changes);
 		intendedScore = saveData.score;
 	}
 
@@ -448,8 +447,7 @@ class FreeplayState extends MusicBeatState
 	 * @param change How much to change
 	 * @param force Force the change, even if `change` is equal to 0.
 	 */
-	public function changeSelection(change:Int = 0, force:Bool = false)
-	{
+	public function changeSelection(change:Int = 0, force:Bool = false) {
 		if (change == 0 && !force) return;
 
 		var event = event("onChangeSelection", EventManager.get(MenuChangeEvent).recycle(curSelected, FlxMath.wrap(curSelected + change, 0, songs.length-1), change));
@@ -457,6 +455,14 @@ class FreeplayState extends MusicBeatState
 
 		curSelected = event.value;
 		if (event.playMenuSFX) CoolUtil.playMenuSFX(SCROLL, 0.7);
+
+		var prevDiff = curDifficulties[curDifficulty], prevVariant = curDiffMetaKeys[curDifficulty];
+		updateCurDifficulties();
+
+		for (i => diff in curDifficulties) if (diff == prevDiff && curDiffMetaKeys[i] == prevVariant) {
+			curDifficulty = i;
+			break;
+		}
 
 		changeDiff(0, true);
 
@@ -491,13 +497,24 @@ class FreeplayState extends MusicBeatState
 		}
 	}
 
-	function updateCurSongMeta() {
-		var song = songs[curSelected];
-		if (song == null) {
-			curSong = null;
-			curSongDifficulty = null;
+	function updateCurDifficulties() {
+		curDiffMetaKeys.resize(0);
+		curDifficulties = songs[curSelected].difficulties.copy();
+		for (i in 0...curDifficulties.length) curDiffMetaKeys.push(null);
+		
+		if (songs[curSelected].variants != null) {
+			var meta:ChartMetaData;
+			for (variant in songs[curSelected].variants) if ((meta = songs[curSelected].metas.get(variant)) != null) {
+				curDifficulties = curDifficulties.concat(meta.difficulties);
+				for (i in 0...meta.difficulties.length) curDiffMetaKeys.push(variant);
+			}
 		}
-		else if ((curSong = song.metas.get(curSongDifficulty = song.difficulties[curDifficulty])) == null)
+	}
+
+	function updateCurSong() {
+		var song = songs[curSelected];
+		if (song == null) curSong = null;
+		else if ((curSong = song.metas.get(curDiffMetaKeys[curDifficulty])) == null)
 			curSong = song;
 	}
 }
