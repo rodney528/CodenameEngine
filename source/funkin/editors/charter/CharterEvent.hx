@@ -231,7 +231,7 @@ class CharterEvent extends UISliceSprite implements ICharterSelectable {
 					} else {
 						var group = new EventIconGroup();
 						var icon = getIconFromStrumline(event.params[0]);
-						if (icon != null) {
+						if (icon != null) { // had to do this, otherwise the icon is offsetd down right for some reason :sob:
 							icon.x -= 8;
 							icon.y -= 8;
 							group.add(icon);
@@ -280,7 +280,7 @@ class CharterEvent extends UISliceSprite implements ICharterSelectable {
 					if (!inMenu) {
 						var group = new EventIconGroup();
 						group.add(generateDefaultIcon(event.name));
-						if (event.params[0] && event.params[4] != 'CLASSIC')
+						if (event.params[0] && event.params[4] != 'SET')
 							generateEventIconDurationArrow(group, event.params[3]);
 						group.members[0].y -= 2;
 						generateEventIconNumbers(group, event.params[1]);
