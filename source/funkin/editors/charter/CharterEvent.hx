@@ -82,7 +82,7 @@ class CharterEvent extends UISliceSprite implements ICharterSelectable {
 	}
 
 	/**
-	 * Pack data is a list of 4 strings separated by `________PACKSEP________`
+	 * Pack data is a list of 5 strings separated by `________PACKSEP________`
 	 * [0] Event Name
 	 * [1] Event Script
 	 * [2] Event JSON Info
