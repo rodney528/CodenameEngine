@@ -1984,6 +1984,7 @@ class PlayState extends MusicBeatState
 		}
 
 		if (event.deleteNote) strumLine.deleteNote(note);
+		else note.updateSustainClip();
 
 		gameAndCharsEvent("onPostNoteHit", event);
 	}
