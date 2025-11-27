@@ -122,13 +122,17 @@ class NativeAudioSource {
 	var arrayType:TypedArrayType;
 	var loopPoints:Array<Int>; // In Samples
 
-	static var threadRunning:Bool = false;
 	static var streamSources:Array<NativeAudioSource> = [];
 	static var queuedStreamSources:Array<NativeAudioSource> = [];
 
 	static var streamMutex:Mutex = new Mutex();
-	static var streamThread:Thread;
 	static var streamTimer:Timer;
+
+	#if !ALLOW_MULTITHREADING
+	static var wasEmpty:Bool = false;
+	static var threadRunning:Bool = false;
+	static var streamThread:Thread;
+	#end
 
 	var streamRemove:Bool;
 
@@ -469,27 +473,31 @@ class NativeAudioSource {
 		streamMutex.release();
 	}
 
-	static function streamThreadRun() {
-		var i:Int, source:NativeAudioSource, process:Int, v:Int;
+	static function streamBuffersUpdate() {
+		streamMutex.acquire();
 
-		while ((i = Thread.readMessage(true)) != 0) {
-			streamMutex.acquire();
-			while (i-- > 0) {
-				if ((source = streamSources[i]).streamRemove) continue;
-				else if (source.parent.buffer == null) {
-					source.stopStream();
-					continue;
-				}
-
-				process = source.requestBuffers < STREAM_MIN_BUFFERS ? STREAM_MIN_BUFFERS - source.requestBuffers : 0;
-				process = STREAM_PROCESS_BUFFERS > process ? STREAM_PROCESS_BUFFERS : process;
-				if ((process = (v = STREAM_MAX_BUFFERS - source.requestBuffers) > process ? process : v) > 0) source.fillBuffers(process);
+		var i:Int = streamSources.length, source:NativeAudioSource, process:Int, v:Int;
+		while (i-- > 0) {
+			if ((source = streamSources[i]).streamRemove) continue;
+			else if (source.parent.buffer == null) {
+				source.stopStream();
+				continue;
 			}
-			streamMutex.release();
+
+			process = source.requestBuffers < STREAM_MIN_BUFFERS ? STREAM_MIN_BUFFERS - source.requestBuffers : 0;
+			process = STREAM_PROCESS_BUFFERS > process ? STREAM_PROCESS_BUFFERS : process;
+			if ((process = (v = STREAM_MAX_BUFFERS - source.requestBuffers) > process ? process : v) > 0) source.fillBuffers(process);
 		}
 
+		streamMutex.release();
+	}
+
+	#if !ALLOW_MULTITHREADING
+	static function streamThreadRun() {
+		while (Thread.readMessage(true)) streamBuffersUpdate();
 		threadRunning = false;
 	}
+	#end
 
 	static function streamUpdate() {
 		if (!streamMutex.tryAcquire()) return;
@@ -512,13 +520,28 @@ class NativeAudioSource {
 			}
 		}
 
-		streamMutex.release();
+		#if ALLOW_MULTITHREADING
+		if (streamSources.length != 0) funkin.backend.utils.EngineUtil.execAsync(streamBuffersUpdate);
+		#else
 		if (streamSources.length == 0) {
-			streamTimer.stop();
-			if (threadRunning) streamThread.sendMessage(0);
+			if (wasEmpty) {
+				wasEmpty = false;
+				streamTimer.stop();
+				if (threadRunning) streamThread.sendMessage(1);
+			}
+			else {
+				wasEmpty = true;
+				streamTimer = resetTimer(streamTimer, 1000, streamUpdate);
+			}
 		}
-		else if (threadRunning || (threadRunning = (streamThread = Thread.create(streamThreadRun)) != null))
-			streamThread.sendMessage(streamSources.length);
+		else {
+			wasEmpty = false;
+			if (threadRunning || (threadRunning = (streamThread = Thread.create(streamThreadRun)) != null)) 
+				streamThread.sendMessage(1);
+		}
+		#end
+
+		streamMutex.release();
 	}
 
 	function removeStream() {
