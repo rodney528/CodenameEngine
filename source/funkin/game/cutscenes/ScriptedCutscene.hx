@@ -98,7 +98,7 @@ class ScriptedCutscene extends Cutscene {
 	public override function openSubState(subState:FlxSubState)
 	{
 		var event = EventManager.get(StateEvent).recycle(subState);
-		script.call(Flags.MOD_API_VERSION > 2 ? "onSubstateClose" /*Remove this entirely*/ : "onOpenSubState", [event]);
+		script.call(Flags.MOD_API_VERSION <= 1 ? "onSubstateClose" /*Remove this entirely*/ : "onOpenSubState", [event]);
 		if (!event.cancelled)
 			super.openSubState(event.substate is FlxSubState ? event.substate : subState);
 	}
@@ -106,7 +106,7 @@ class ScriptedCutscene extends Cutscene {
 	public override function closeSubState()
 	{
 		var event = EventManager.get(StateEvent).recycle(subState);
-		script.call(Flags.MOD_API_VERSION > 2 ? "onSubstateOpen" /*Remove this entirely*/ : "onCloseSubState", [event]);
+		script.call(Flags.MOD_API_VERSION <= 1 ? "onSubstateOpen" /*Remove this entirely*/ : "onCloseSubState", [event]);
 		if (!event.cancelled)
 			super.closeSubState();
 	}
