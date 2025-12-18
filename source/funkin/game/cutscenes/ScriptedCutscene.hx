@@ -100,7 +100,7 @@ class ScriptedCutscene extends Cutscene {
 		var event = EventManager.get(StateEvent).recycle(subState);
 		script.call(Flags.MOD_API_VERSION <= 1 ? "onSubstateClose" /*Remove this entirely*/ : "onOpenSubState", [event]);
 		if (!event.cancelled)
-			super.openSubState(event.substate is FlxSubState ? event.substate : subState);
+			super.openSubState(event.substate is FlxSubState ? cast event.substate : subState);
 	}
 
 	public override function closeSubState()
