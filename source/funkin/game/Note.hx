@@ -113,8 +113,8 @@ class Note extends FlxSprite
 
 	public var animSuffix:String = null;
 
-	public var tripTimer:Float = 0; // ranges from 0 to 1
-
+	// Deprecated?
+	@:dox(hide) public var tripTimer:Float = 0; // ranges from 0 to 1
 
 	private static function customTypePathExists(path:String) {
 		if (__customNoteTypeExists.exists(path))
