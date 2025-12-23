@@ -109,7 +109,7 @@ jobs:
           haxe -cp commandline -D analyzer-optimize --run Main setup -s
       - name: Building the game
         run: |
-          haxelib run lime build linux
+          haxelib run lime build linux -debug
       # - name: Tar files
       #   run: tar -zcvf CodenameEngine.tar.gz -C export/debug/linux/bin .
       - name: Uploading artifact (entire build)
