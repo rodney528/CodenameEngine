@@ -197,6 +197,7 @@ typedef EventInfoFile = {
 		var name:String;
 		var type:String;
 		var defaultValue:Dynamic;
+		var ?saveIfDefault:Bool;
 	}>;
 }
 
