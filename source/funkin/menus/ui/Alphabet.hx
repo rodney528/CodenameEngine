@@ -175,8 +175,10 @@ class Alphabet extends FlxSprite {
 	public var renderMode:AlphabetRenderMode = DEFAULT;
 
 	// for menu shit
+	public var menuOffset:FlxPoint = FlxPoint.get();
 	public var targetY:Float = 0;
 	public var isMenuItem:Bool = false;
+	public var itemSlide:Float = 20;
 	public var itemHeight:Float = 120;
 
 	public function new(?x:Float, ?y:Float, ?text:String = "", ?font:OneOfTwo<String, Bool> = "normal") {
@@ -213,8 +215,8 @@ class Alphabet extends FlxSprite {
 		if (isMenuItem) {
 			var scaledY = targetY * 1.3;
 
-			y = CoolUtil.fpsLerp(y, (scaledY * itemHeight) + (FlxG.height - height) * 0.5, 0.16);
-			x = CoolUtil.fpsLerp(x, (targetY * 20) + 90, 0.16);
+			y = CoolUtil.fpsLerp(y, (scaledY * itemHeight) + (FlxG.height - height) * 0.5 + menuOffset.y, 0.16);
+			x = CoolUtil.fpsLerp(x, (targetY * itemSlide) + 90 + menuOffset.x, 0.16);
 		}
 	}
 
@@ -541,12 +543,6 @@ class Alphabet extends FlxSprite {
 		switch (node.nodeName) {
 			case "spritesheet":
 				final sheet = node.firstChild().nodeValue.trim();
-				if (frames == null)
-					frames = Paths.getFrames(sheet);
-				else {
-					for (frame in Paths.getFrames(sheet).frames)
-						frames.pushFrame(frame);
-				}
 				sheets.push(sheet);
 			case "defaultAnim":
 				var idx = ["UPPER", "LOWER"].indexOf(node.get("casing").toUpperCase()) + 1;
@@ -789,10 +785,9 @@ class Alphabet extends FlxSprite {
 		colorMode = (["offsets", "none"].indexOf(xml.get("colorMode")) + 1);
 		antialiasing = xml.get("antialiasing").getDefault("true") == "true";
 
-		frames = null;
-
 		for (node in xml.elements())
 			checkNode(node);
+		frames = Paths.getMultiFrames(sheets);
 	}
 
 	private static var alphabetProperties:Array<String> = ["fps", "advance", "lineGap", "forceCasing", "colorMode", "antialiasing"];
@@ -916,7 +911,8 @@ class Alphabet extends FlxSprite {
 	}
 
 	override function destroy():Void {
-		originOffset = FlxDestroyUtil.destroy(originOffset);
+		menuOffset = FlxDestroyUtil.put(menuOffset);
+		originOffset = FlxDestroyUtil.put(originOffset);
 		__drawScale = FlxDestroyUtil.put(__drawScale);
 		__renderData = null;
 		__laneWidths = null;

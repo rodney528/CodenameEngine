@@ -5,6 +5,7 @@ package funkin.editors.charter;
 import flixel.input.keyboard.FlxKey;
 import flixel.math.FlxPoint;
 import flixel.sound.FlxSound;
+import flixel.sound.FlxSoundData;
 import flixel.util.FlxSort;
 import funkin.backend.chart.*;
 import funkin.backend.chart.ChartData;
@@ -622,9 +623,11 @@ class Charter extends UIState {
 		Conductor.setupSong(PlayState.SONG);
 		noteTypes = PlayState.SONG.noteTypes;
 
-		FlxG.sound.setMusic(FlxG.sound.load(Paths.inst(__song, __diff, PlayState.SONG.meta.instSuffix)));
-		if (Assets.exists(Paths.voices(__song, __diff, PlayState.SONG.meta.vocalsSuffix)))
-			vocals = FlxG.sound.load(Paths.voices(__song, __diff, PlayState.SONG.meta.vocalsSuffix));
+		FlxG.sound.setMusic(FlxG.sound.load(FlxSoundData.fromAssetKey(Paths.inst(__song, __diff, PlayState.SONG.meta.instSuffix), false)));
+
+		if (Assets.exists(Paths.voices(__song, __diff, PlayState.SONG.meta.vocalsSuffix))) {
+			vocals = FlxG.sound.load(FlxSoundData.fromAssetKey(Paths.voices(__song, __diff, PlayState.SONG.meta.vocalsSuffix)));
+		}
 		else
 			vocals = new FlxSound();
 
@@ -637,6 +640,28 @@ class Charter extends UIState {
 		for (strL in PlayState.SONG.strumLines) {
 			createStrumline(strumLines.members.length, strL, false, false);
 			noteCount += strL.notes.length;
+		}
+
+		// checks for newly created songs
+		if (PlayState.SONG.strumLines.length == 0) {
+			createStrumline(0, {
+				characters: ["dad"],
+				type: 0, // Opponent
+				notes: [],
+				position: "dad",
+				visible: true,
+				keyCount: 4
+			}, false, false);
+
+			createStrumline(1, {
+				characters: ["bf"],
+				type: 1, // Player
+				notes: [],
+				position: "boyfriend",
+				visible: true,
+				strumLinePos: 0.75,
+				keyCount: 4
+			}, false, false);
 		}
 
 		// create notes
@@ -1179,6 +1204,7 @@ class Charter extends UIState {
 			var note:CharterNote = cast selected;
 			note.strumLineID = strumLines.members.indexOf(note.strumLine);
 			note.strumLine = null; // For static undos :D
+			CharterNote.callScriptOnNote('onCharterNoteDelete', note);
 			notesGroup.remove(note);
 			note.kill();
 		} else if (selected is CharterEvent) {
@@ -1198,9 +1224,11 @@ class Charter extends UIState {
 
 		notesGroup.autoSort = false;
 		selection.loop(function (n:CharterNote) {
+			final lastAlive = n.alive;
 			n.strumLine = strumLines.members[n.strumLineID];
 			n.revive();
 			notesGroup.add(n);
+			if (!lastAlive) CharterNote.callScriptOnNote('onCharterNoteRevive', n);
 		}, function (e:CharterEvent) {
 			e.revive();
 			(e.global ? rightEventsGroup : leftEventsGroup).add(e);
@@ -1744,7 +1772,6 @@ class Charter extends UIState {
 		if (selection == null || selection.length == 0) return;
 		selection.loop((n:CharterNote) -> {
 			noteDeleteAnims.deleteNotes.push({note: n, time: noteDeleteAnims.deleteTime});
-			CharterNote.callScriptOnNote('onCharterNoteDelete', n);
 		});
 		selection = deleteSelection(selection, true);
 	}
@@ -1759,7 +1786,6 @@ class Charter extends UIState {
 			if (oldNote != null && oldNote.step == note.step && oldNote.strumLineID == note.strumLineID && oldNote.id == note.id) {
 				noteDeleteAnims.deleteNotes.push({note: oldNote, time: noteDeleteAnims.deleteTime});
 				toDelete.push(oldNote);
-				CharterNote.callScriptOnNote('onCharterNoteDelete', oldNote);
 			}
 			oldNote = note;
 		}
